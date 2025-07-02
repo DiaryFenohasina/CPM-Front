@@ -4,20 +4,20 @@
       <SidebarComponent />
     </div>
     <div class="col-9 p-0">
-      <!-- <CpmViews /> -->
+      <CpmViews />
     </div>
   </div>
 </template>
 
 <script>
 import SidebarComponent from './components/SidebarComponent.vue';
-// import CpmViews from './views/CpmViews.vue';
+import CpmViews from './views/CpmViews.vue';
 
 export default {
   name: 'App',
   components: {
     SidebarComponent,
-    // CpmViews
+    CpmViews
   }
 }
 </script>
