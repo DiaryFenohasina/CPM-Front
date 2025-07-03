@@ -1,37 +1,32 @@
 <template>
   <!-- Toggle Button -->
   <!-- Bascule -->
-  <button
-    type="button"
+  <button type="button"
     class="position-absolute d-flex align-items-center justify-content-center bg-primary text-white border-0 shadow rounded-circle"
     :style="{
       zIndex: 999,
-      right: props.collapsed ? '-12px' : '-12px',
+      right: '-15px',
       top: '20px',
       width: '32px',
       height: '32px',
       cursor: 'pointer',
-    }"
-    @click="toggleSidebar"
-  >
-    <i
-      :class="[
-        'transition-transform',
-        props.collapsed ? 'bi bi-caret-right-fill' : 'bi bi-caret-left-fill',
-      ]"
-    />
+    }" @click="toggleSidebar">
+    <i :class="[
+      'transition-transform',
+      props.collapsed ? 'bi bi-caret-right-fill' : 'bi bi-caret-left-fill',
+    ]" />
   </button>
 
   <!-- Sidebar Container -->
   <div class="container-fluid bg-white border-end shadow-sm p-0 h-100">
-    <div :class="props.collapsed ? 'd-none' : 'd-block h-100'">
+    <div :class="props.collapsed ? 'd-none' : 'd-block'">
       <!-- Sidebar Header -->
       <div class="bg-primary text-center py-4">
         <h2 class="text-white fw-bold m-0">CPM</h2>
       </div>
 
       <!-- Task Section -->
-      <div class="p-3 d-flex flex-column h-100">
+      <div class="p-3 d-flex flex-column">
         <!-- Header Controls -->
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h4 class="text-primary fw-bold m-0">Liste des tâches</h4>
@@ -46,7 +41,7 @@
         </div>
 
         <!-- Tasks Table -->
-        <div class="table-responsive flex-grow-1 overflow-auto mb-3">
+        <div class="table-responsive flex-grow-1 overflow-auto mb-3" style="max-height: calc(100vh - 250px);">
           <table class="table table-hover align-middle">
             <thead class="table-light sticky-top">
               <tr>
@@ -63,25 +58,15 @@
                 </td>
                 <td>{{ task.duration }} j</td>
                 <td>
-                  <span
-                    v-for="s in task.successors"
-                    :key="s"
-                    class="badge bg-secondary me-1"
-                  >
+                  <span v-for="s in task.successors" :key="s" class="badge bg-secondary me-1">
                     {{ s }}
                   </span>
                 </td>
                 <td>
-                  <button
-                    class="btn btn-sm btn-outline-success me-1"
-                    @click="editTask(task)"
-                  >
+                  <button class="btn btn-sm btn-outline-success me-1" @click="editTask(task)">
                     <i class="bi bi-pencil"></i>
                   </button>
-                  <button
-                    class="btn btn-sm btn-outline-danger"
-                    @click="deleteTask(task.name)"
-                  >
+                  <button class="btn btn-sm btn-outline-danger" @click="deleteTask(task.name)">
                     <i class="bi bi-trash"></i>
                   </button>
                 </td>
@@ -99,11 +84,7 @@
 
         <!-- Generate Button -->
         <div class="text-end">
-          <button
-            class="btn btn-success"
-            :disabled="tasks.length === 0"
-            @click="generateCPM"
-          >
+          <button class="btn btn-success" :disabled="tasks.length === 0" @click="generateCPM">
             Générer le schéma
           </button>
         </div>
@@ -125,30 +106,15 @@
           <form @submit.prevent="submitTask">
             <div class="mb-3">
               <label class="form-label">Nom</label>
-              <input
-                class="form-control"
-                required
-                v-model="formTaskName"
-                :disabled="isEditing"
-              />
+              <input class="form-control" required v-model="formTaskName" :disabled="isEditing" />
             </div>
             <div class="mb-3">
               <label class="form-label">Durée</label>
-              <input
-                type="number"
-                min="1"
-                class="form-control"
-                required
-                v-model="formTaskDuration"
-              />
+              <input type="number" min="1" class="form-control" required v-model="formTaskDuration" />
             </div>
             <div class="mb-3">
               <label class="form-label">Successeurs</label>
-              <input
-                class="form-control"
-                placeholder="Séparés par des virgules"
-                v-model="formTaskSuccessor"
-              />
+              <input class="form-control" placeholder="Séparés par des virgules" v-model="formTaskSuccessor" />
             </div>
             <div class="text-end">
               <button class="btn btn-primary">
@@ -222,8 +188,15 @@ const submitTask = () => {
   closeModal();
 };
 
-const deleteTask = (taskName) => {
-  tasks.value = tasks.value.filter((task) => task.name !== taskName);
+const deleteTask = async (taskName) => {
+  try {
+    const res = await axios.delete("http://localhost:8006/api/tasks/" + taskName);
+    if (res.status === 200){
+      tasks.value = tasks.value.filter((task) => task.name !== taskName);
+    }
+  } catch (error) {
+    // console.log(error)
+  }
 };
 
 const editTask = (task) => {
@@ -249,7 +222,7 @@ const generateCPM = async () => {
     });
     if (response) emit("generateCPM", true);
   } catch (error) {
-    console.error("Erreur lors de la génération du CPM :", error);
+    // console.error("Erreur lors de la génération du CPM :", error);
   }
 };
 
@@ -264,7 +237,7 @@ onMounted(async () => {
       tasks.value = res.data;
     }
   } catch (error) {
-    console.log(error);
+    // console.log(error);
   }
 });
 </script>
