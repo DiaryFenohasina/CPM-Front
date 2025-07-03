@@ -101,9 +101,20 @@ onMounted(async () => {
             },
             new go.Binding('text', '', data => {
               if (data.name === 'DEBUT' || data.name === 'FIN') return ''
+              
+              if (data.successorLateFinishes && data.successorLateFinishes.size > 0) {
+                // Trier les successeurs par ordre alphabétique
+                const sortedSuccessors = Array.from(data.successorLateFinishes.keys()).sort()
+                const orderedValues = sortedSuccessors.map(successor => 
+                  data.successorLateFinishes.get(successor)
+                )
+                return orderedValues.join('\n')
+              }
+              
               if (data.lateFinishes && data.lateFinishes.length > 0) {
                 return data.lateFinishes.join('\n')
               }
+              
               return data.lateTime
             })
           )
@@ -184,7 +195,8 @@ onMounted(async () => {
     name: 'DEBUT',
     earlyTime: 0,
     lateTime: 0,
-    lateFinishes: []
+    lateFinishes: [],
+    successorLateFinishes: new Map()
   })
 
   // Créer l'événement final
@@ -214,7 +226,8 @@ onMounted(async () => {
             name: predKey,
             earlyTime: task.earlyStart,
             lateTime: task.lateStart,
-            lateFinishes: []
+            lateFinishes: [],
+            successorLateFinishes: new Map()
           })
         }
         startEventKey = predKey
@@ -231,7 +244,8 @@ onMounted(async () => {
             name: endEventKey,
             earlyTime: task.earlyFinish,
             lateTime: task.lateFinish,
-            lateFinishes: task.lateFinishes || []
+            lateFinishes: task.lateFinishes || [],
+            successorLateFinishes: new Map()
           })
         }
       }
@@ -328,11 +342,19 @@ onMounted(async () => {
         const event = filteredEvents.get(endEvent)
         event.earlyTime = Math.max(event.earlyTime || 0, task.earlyFinish)
         event.lateTime = Math.min(event.lateTime || Infinity, task.lateFinish)
-        // Ajouter les lateFinishes de la tâche à l'événement
-        if (task.lateFinishes && task.lateFinishes.length > 0) {
-          event.lateFinishes = [...(event.lateFinishes || []), ...task.lateFinishes]
-          // Supprimer les doublons et trier
-          event.lateFinishes = [...new Set(event.lateFinishes)].sort((a, b) => a - b)
+        
+        // Créer un mapping entre les successeurs et leurs lateFinishes
+        if (task.lateFinishes && task.lateFinishes.length > 0 && task.successors) {
+          if (!event.successorLateFinishes) {
+            event.successorLateFinishes = new Map()
+          }
+          
+          // Associer chaque successeur à sa lateFinish correspondante
+          task.successors.forEach((successor, index) => {
+            if (index < task.lateFinishes.length) {
+              event.successorLateFinishes.set(successor, task.lateFinishes[index])
+            }
+          })
         }
       }
     }
