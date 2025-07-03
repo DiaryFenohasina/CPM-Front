@@ -16,9 +16,8 @@ onMounted(async () => {
     layout: $(go.LayeredDigraphLayout, {
         layerSpacing: 150,
         columnSpacing: 150,
-    }) // layout orienté top-down auto
+    })
   })
-
 
   // Template pour les nœuds (événements)
   diagram.nodeTemplate =
@@ -28,42 +27,49 @@ onMounted(async () => {
           fill: 'white', 
           strokeWidth: 2,
           stroke: 'black',
-          width: 80,
-          height: 80
+          width: 100,
+          height: 100
         }
       ),
       $(go.Panel, 'Table',
         { margin: 4 },
-        // Date au plus tôt (en haut)
+        // Date au plus tôt (à gauche, rouge)
         $(go.TextBlock, 
           { 
-            row: 0, 
+            column: 0, 
             font: 'bold 12pt sans-serif',
             textAlign: 'center',
             stroke: 'red'
           },
-          new go.Binding('text', 'earlyDate')
+          new go.Binding('text', 'earlyTime')
         ),
-        // Ligne de séparation visuelle
-        $(go.Shape, 'LineH',
+        // Ligne de séparation verticale
+        $(go.Shape, 'LineV',
           {
-            row: 1,
+            column: 1,
             stroke: 'black',
             strokeWidth: 1,
-            width: 50,
-            height: 1,
-            margin: new go.Margin(2, 0, 2, 0)
+            width: 1,
+            height: 40,
+            margin: new go.Margin(0, 3, 0, 3)
           }
         ),
-        // Date au plus tard (en bas)
-        $(go.TextBlock, 
+        // Dates au plus tard (à droite, bleu)
+        $(go.Panel, 'Vertical',
           { 
-            row: 2, 
-            font: 'bold 12pt sans-serif',
-            textAlign: 'center',
-            stroke: 'blue'
+            column: 2,
+            alignment: go.Spot.Center
           },
-          new go.Binding('text', 'lateDate')
+          $(go.TextBlock, 
+            { 
+              font: 'bold 12pt sans-serif',
+              textAlign: 'center',
+              stroke: 'blue',
+              maxLines: 6,
+              wrap: go.TextBlock.WrapDesiredSize
+            },
+            new go.Binding('text', 'lateTime')
+          )
         )
       )
     )
@@ -72,7 +78,6 @@ onMounted(async () => {
   diagram.linkTemplate =
     $(go.Link,
       { 
-        // routing: go.Link.Orthogonal,
         corner: 10,
         selectable: true,
       },
@@ -82,7 +87,8 @@ onMounted(async () => {
           stroke: 'black'
         },
         new go.Binding('stroke', 'isCritical', b => b ? 'red' : 'black'),
-        new go.Binding('strokeWidth', 'isCritical', b => b ? 3 : 2)
+        new go.Binding('strokeWidth', 'isCritical', b => b ? 3 : 2),
+        new go.Binding('strokeDashArray', 'isFictitious', f => f ? [5, 5] : null)
       ),
       $(go.Shape,
         { 
@@ -95,6 +101,8 @@ onMounted(async () => {
       ),
       // Étiquette avec nom et durée de la tâche
       $(go.Panel, 'Auto',
+        // Fixed: Convert to boolean and use proper binding syntax
+        new go.Binding('visible', 'isFictitious', f => !f),
         $(go.Shape, 'RoundedRectangle',
           { 
             fill: 'white',  
@@ -122,7 +130,7 @@ onMounted(async () => {
               font: '10pt sans-serif',
               textAlign: 'center'
             },
-            new go.Binding('text', 'duration', d => ` ${d}`)
+            new go.Binding('text', 'duration', d => `${d}`)
           )
         )
       )
@@ -131,45 +139,141 @@ onMounted(async () => {
   // Charger données backend
   const { data } = await axios.get('http://localhost:8006/api/critical-path')
 
-  // Transformer en format GoJS avec la structure originale
-  const nodes = []
+  // Créer les événements et liens
+  const events = new Map()
   const links = []
 
-  // Créer les nœuds pour chaque tâche
-  Object.entries(data.tasks).forEach(([name, task]) => {
-    if (name !== 'fin') {
-      nodes.push({
-        key: name.toUpperCase(),
-        earlyDate: task.earlyStart,
-        lateDate: task.lateStart,
-        isCritical: data.criticalPath.includes(name)
-      })
-    }
+  // Créer l'événement de départ
+  events.set('START', {
+    key: 'START',
+    earlyTime: 0,
+    lateTime: 0
   })
 
-  // Ajouter le nœud de fin
-  nodes.push({
+  // Créer l'événement final
+  events.set('FIN', {
     key: 'FIN',
-    earlyDate: data.duration,
-    lateDate: 'FIN',
-    isCritical: true
+    earlyTime: data.duration,
+    lateTime: data.duration
   })
 
-  // Créer les liens avec les noms et durées sur les arcs
-  Object.entries(data.tasks).forEach(([name, task]) => {
-    if (task.successors && name !== 'fin') {
-      task.successors.forEach(succ => {
-        const targetKey = succ === 'fin' ? 'FIN' : succ.toUpperCase()
-        links.push({
-          from: name.toUpperCase(),
-          to: targetKey,
-          taskName: name.toUpperCase(),
-          duration: task.duration,
-          isCritical: data.criticalPath.includes(name) && (succ === 'fin' || data.criticalPath.includes(succ))
-        })
-      })
+  // Créer des événements uniques pour chaque point de convergence/divergence
+  // const eventCounter = { value: 1 }
+  const taskToStartEvent = new Map()
+  const taskToEndEvent = new Map()
+
+  // Première passe : créer les événements de début et fin pour chaque tâche
+  Object.entries(data.tasks).forEach(([taskName, task]) => {
+    if (taskName !== 'fin') {
+      // Événement de début de la tâche
+      let startEventKey = 'START'
+      if (task.predecessors && task.predecessors.length > 0) {
+        // Créer une clé unique basée sur les prédécesseurs
+        const predKey = task.predecessors.sort().join('_') + '_END'
+        if (!events.has(predKey)) {
+          events.set(predKey, {
+            key: predKey,
+            earlyTime: task.earlyStart,
+            lateTime: task.lateStart
+          })
+        }
+        startEventKey = predKey
+      }
+      taskToStartEvent.set(taskName, startEventKey)
+
+      // Événement de fin de la tâche
+      let endEventKey = 'FIN'
+      if (task.successors && task.successors.length > 0 && !task.successors.includes('fin')) {
+        endEventKey = taskName + '_END'
+        if (!events.has(endEventKey)) {
+          events.set(endEventKey, {
+            key: endEventKey,
+            earlyTime: task.earlyFinish,
+            lateTime: task.lateFinish
+          })
+        }
+      }
+      taskToEndEvent.set(taskName, endEventKey)
     }
   })
+
+  // Deuxième passe : créer les liens entre les événements
+  Object.entries(data.tasks).forEach(([taskName, task]) => {
+    if (taskName !== 'fin') {
+      const fromEvent = taskToStartEvent.get(taskName)
+      const toEvent = taskToEndEvent.get(taskName)
+
+      // Créer le lien principal pour la tâche
+      links.push({
+        from: fromEvent,
+        to: toEvent,
+        taskName: taskName.toUpperCase(),
+        duration: task.duration,
+        isCritical: data.criticalPath.includes(taskName),
+        isFictitious: false
+      })
+
+      // Créer des liens vers les successeurs si nécessaire
+      if (task.successors && task.successors.length > 0) {
+        task.successors.forEach(successor => {
+          if (successor !== 'fin') {
+            const successorStartEvent = taskToStartEvent.get(successor)
+            if (toEvent !== successorStartEvent) {
+              // Arc fictif si nécessaire
+              links.push({
+                from: toEvent,
+                to: successorStartEvent,
+                taskName: '',
+                duration: 0,
+                isCritical: false,
+                isFictitious: true
+              })
+            }
+          }
+        })
+      }
+    }
+  })
+
+  // Nettoyer les événements non utilisés et recalculer les temps
+  const usedEvents = new Set()
+  links.forEach(link => {
+    usedEvents.add(link.from)
+    usedEvents.add(link.to)
+  })
+  usedEvents.add('START')
+  usedEvents.add('FIN')
+
+  // Filtrer les événements pour ne garder que ceux utilisés
+  const filteredEvents = new Map()
+  usedEvents.forEach(eventKey => {
+    if (events.has(eventKey)) {
+      filteredEvents.set(eventKey, events.get(eventKey))
+    }
+  })
+
+  // Recalculer les temps des événements basés sur les tâches
+  Object.entries(data.tasks).forEach(([taskName, task]) => {
+    if (taskName !== 'fin') {
+      const startEvent = taskToStartEvent.get(taskName)
+      const endEvent = taskToEndEvent.get(taskName)
+      
+      if (filteredEvents.has(startEvent)) {
+        const event = filteredEvents.get(startEvent)
+        event.earlyTime = Math.max(event.earlyTime || 0, task.earlyStart)
+        event.lateTime = Math.min(event.lateTime || Infinity, task.lateStart)
+      }
+      
+      if (filteredEvents.has(endEvent)) {
+        const event = filteredEvents.get(endEvent)
+        event.earlyTime = Math.max(event.earlyTime || 0, task.earlyFinish)
+        event.lateTime = Math.min(event.lateTime || Infinity, task.lateFinish)
+      }
+    }
+  })
+
+  // Convertir les événements en format GoJS
+  const nodes = Array.from(filteredEvents.values())
 
   diagram.model = new go.GraphLinksModel(nodes, links)
 })
