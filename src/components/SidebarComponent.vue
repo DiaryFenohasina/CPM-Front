@@ -138,11 +138,11 @@ const submitTask = () => {
 
   const successors = formTaskSuccessor.value
     .split(",")
-    .map(s => s.trim().toLowerCase())
+    .map(s => s.trim().toUpperCase())
     .filter(Boolean);
 
   const newTask = {
-    name: formTaskName.value.trim().toLowerCase(),
+    name: formTaskName.value.trim().toUpperCase(),
     duration: parseInt(formTaskDuration.value),
     successors,
   };
