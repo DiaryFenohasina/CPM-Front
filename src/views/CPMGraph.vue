@@ -1,30 +1,42 @@
 <template>
-   <div ref="diagramDiv" style="width: 100vw; height: 100vh; border: 1px solid #ddd;"></div>
+  <div ref="diagramDiv" style="width: 100%; height: 100%; border: 1px solid #ddd;"></div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import go from 'gojs'
 import axios from 'axios'
 
 const diagramDiv = ref(null)
+let diagram = null
 
-onMounted(async () => {
+const props = defineProps({
+  generate: Boolean
+})
+const emit = defineEmits(["planFinished"])
+
+
+async function generateCPM() {
   const $ = go.GraphObject.make
-  const diagram = $(go.Diagram, diagramDiv.value, {
-    'undoManager.isEnabled': true,
-    layout: $(go.LayeredDigraphLayout, {
+
+  if (diagram) diagram.clear()
+  else {
+    diagram = $(go.Diagram, diagramDiv.value, {
+      'undoManager.isEnabled': true,
+      layout: $(go.LayeredDigraphLayout, {
         layerSpacing: 150,
         columnSpacing: 150,
+      })
     })
-  })
+
+  }
 
   // Template pour les nœuds (événements)
   diagram.nodeTemplate =
     $(go.Node, 'Auto',
       $(go.Shape, 'Circle',
-        { 
-          fill: 'white', 
+        {
+          fill: 'white',
           strokeWidth: 2,
           stroke: 'black',
           width: 150,
@@ -34,8 +46,8 @@ onMounted(async () => {
       $(go.Panel, 'Table',
         { margin: 4 },
         // Nom de l'événement (seulement pour DEBUT et FIN)
-        $(go.TextBlock, 
-          { 
+        $(go.TextBlock,
+          {
             row: 0,
             columnSpan: 3,
             font: 'bold 14pt sans-serif',
@@ -46,8 +58,8 @@ onMounted(async () => {
           new go.Binding('text', 'name', name => (name === 'DEBUT' || name === 'FIN') ? name : '')
         ),
         // Valeur pour DEBUT (0) et FIN (durée du projet)
-        $(go.TextBlock, 
-          { 
+        $(go.TextBlock,
+          {
             row: 1,
             columnSpan: 3,
             font: 'bold 12pt sans-serif',
@@ -61,10 +73,10 @@ onMounted(async () => {
           })
         ),
         // Date au plus tôt (à gauche, rouge) - seulement pour les nœuds intermédiaires
-        $(go.TextBlock, 
-          { 
+        $(go.TextBlock,
+          {
             row: 2,
-            column: 0, 
+            column: 0,
             font: 'bold 12pt sans-serif',
             textAlign: 'center',
             stroke: 'red'
@@ -85,8 +97,8 @@ onMounted(async () => {
           new go.Binding('visible', 'name', name => name !== 'DEBUT' && name !== 'FIN')
         ),
         // Date au plus tard (à droite, bleu) - seulement pour les nœuds intermédiaires
-        $(go.TextBlock, 
-          { 
+        $(go.TextBlock,
+          {
             row: 2,
             column: 2,
             font: 'bold 12pt sans-serif',
@@ -104,12 +116,12 @@ onMounted(async () => {
   // Template pour les liens (tâches)
   diagram.linkTemplate =
     $(go.Link,
-      { 
+      {
         corner: 10,
         selectable: true,
       },
       $(go.Shape,
-        { 
+        {
           strokeWidth: 2,
           stroke: 'black'
         },
@@ -118,7 +130,7 @@ onMounted(async () => {
         new go.Binding('strokeDashArray', 'isFictitious', f => f ? [5, 5] : null)
       ),
       $(go.Shape,
-        { 
+        {
           toArrow: 'Standard',
           fill: 'black',
           stroke: 'black'
@@ -129,8 +141,8 @@ onMounted(async () => {
       // Étiquette avec nom et durée de la tâche
       $(go.Panel, 'Auto',
         $(go.Shape, 'RoundedRectangle',
-          { 
-            fill: 'white',  
+          {
+            fill: 'white',
             stroke: 'gray',
             strokeWidth: 1
           },
@@ -141,7 +153,7 @@ onMounted(async () => {
           { margin: 4 },
           // Nom de la tâche
           $(go.TextBlock,
-            { 
+            {
               row: 0,
               font: 'bold 12pt sans-serif',
               textAlign: 'center'
@@ -150,7 +162,7 @@ onMounted(async () => {
           ),
           // Durée
           $(go.TextBlock,
-            { 
+            {
               row: 1,
               font: '10pt sans-serif',
               textAlign: 'center'
@@ -303,13 +315,13 @@ onMounted(async () => {
     if (taskName !== 'fin') {
       const startEvent = taskToStartEvent.get(taskName)
       const endEvent = taskToEndEvent.get(taskName)
-      
+
       if (filteredEvents.has(startEvent)) {
         const event = filteredEvents.get(startEvent)
         event.earlyTime = Math.max(event.earlyTime || 0, task.earlyStart)
         event.lateTime = Math.min(event.lateTime || Infinity, task.lateStart)
       }
-      
+
       if (filteredEvents.has(endEvent)) {
         const event = filteredEvents.get(endEvent)
         event.earlyTime = Math.max(event.earlyTime || 0, task.earlyFinish)
@@ -322,5 +334,18 @@ onMounted(async () => {
   const nodes = Array.from(filteredEvents.values())
 
   diagram.model = new go.GraphLinksModel(nodes, links)
+}
+
+watch(() => props.generate, (newValue) => {
+  if (newValue) {
+    generateCPM()
+    emit("planFinished", true)
+  } else {
+    console.log("kbi  ")
+  }
+})
+
+onMounted(() => {
+  if (props.generate) generateCPM()
 })
 </script>
