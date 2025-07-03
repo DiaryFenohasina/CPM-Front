@@ -22,7 +22,7 @@
     <div :class="props.collapsed ? 'd-none' : 'd-block'">
       <!-- Sidebar Header -->
       <div class="bg-primary text-center py-4">
-        <h2 class="text-white fw-bold m-0">CPM</h2>
+        <h2 class="text-white fw-bold m-0">Critical Path Method</h2>
       </div>
 
       <!-- Task Section -->
@@ -191,11 +191,11 @@ const submitTask = () => {
 const deleteTask = async (taskName) => {
   try {
     const res = await axios.delete("http://localhost:8006/api/tasks/" + taskName);
-    if (res.status === 200){
+    if (res.status === 200) {
       tasks.value = tasks.value.filter((task) => task.name !== taskName);
     }
   } catch (error) {
-    // console.log(error)
+    alert("Une erreur inattendue s'est produite : " + error.message);
   }
 };
 
@@ -211,8 +211,14 @@ const editTask = (task) => {
   }
 };
 
-const resetTasks = () => {
-  tasks.value = [];
+const resetTasks = async () => {
+  try {
+    const res = await axios.delete("http://localhost:8006/api/cpm")
+
+    if (res.status === 200) tasks.value = [];
+  } catch (error) {
+    alert("Une erreur inattendue s'est produite : " + error.message);
+  }
 };
 
 const generateCPM = async () => {
@@ -222,7 +228,7 @@ const generateCPM = async () => {
     });
     if (response) emit("generateCPM", true);
   } catch (error) {
-    // console.error("Erreur lors de la génération du CPM :", error);
+    alert("Une erreur inattendue s'est produite : " + error.message);
   }
 };
 
@@ -237,7 +243,7 @@ onMounted(async () => {
       tasks.value = res.data;
     }
   } catch (error) {
-    // console.log(error);
+    alert("Une erreur inattendue s'est produite : " + error.message);
   }
 });
 </script>
