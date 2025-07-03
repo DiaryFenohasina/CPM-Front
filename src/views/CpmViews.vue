@@ -27,36 +27,67 @@ onMounted(async () => {
           fill: 'white', 
           strokeWidth: 2,
           stroke: 'black',
-          width: 100,
-          height: 100
+          width: 150,
+          height: 150
         }
       ),
       $(go.Panel, 'Table',
         { margin: 4 },
-        // Date au plus tôt (à gauche, rouge)
+        // Nom de l'événement (seulement pour DEBUT et FIN)
         $(go.TextBlock, 
           { 
+            row: 0,
+            columnSpan: 3,
+            font: 'bold 14pt sans-serif',
+            textAlign: 'center',
+            stroke: 'black',
+            margin: new go.Margin(0, 0, 2, 0)
+          },
+          new go.Binding('text', 'name', name => (name === 'DEBUT' || name === 'FIN') ? name : '')
+        ),
+        // Valeur pour DEBUT (0) et FIN (durée du projet)
+        $(go.TextBlock, 
+          { 
+            row: 1,
+            columnSpan: 3,
+            font: 'bold 12pt sans-serif',
+            textAlign: 'center',
+            stroke: 'black'
+          },
+          new go.Binding('text', '', data => {
+            if (data.name === 'DEBUT') return '0'
+            if (data.name === 'FIN') return data.earlyTime.toString()
+            return ''
+          })
+        ),
+        // Date au plus tôt (à gauche, rouge) - seulement pour les nœuds intermédiaires
+        $(go.TextBlock, 
+          { 
+            row: 2,
             column: 0, 
             font: 'bold 12pt sans-serif',
             textAlign: 'center',
             stroke: 'red'
           },
-          new go.Binding('text', 'earlyTime')
+          new go.Binding('text', '', data => (data.name === 'DEBUT' || data.name === 'FIN') ? '' : data.earlyTime)
         ),
-        // Ligne de séparation verticale
+        // Ligne de séparation verticale - seulement pour les nœuds intermédiaires
         $(go.Shape, 'LineV',
           {
+            row: 2,
             column: 1,
             stroke: 'black',
             strokeWidth: 1,
             width: 1,
             height: 40,
             margin: new go.Margin(0, 3, 0, 3)
-          }
+          },
+          new go.Binding('visible', 'name', name => name !== 'DEBUT' && name !== 'FIN')
         ),
-        // Dates au plus tard (à droite, bleu)
+        // Dates au plus tard (à droite, bleu) - seulement pour les nœuds intermédiaires
         $(go.Panel, 'Vertical',
           { 
+            row: 2,
             column: 2,
             alignment: go.Spot.Center
           },
@@ -68,7 +99,13 @@ onMounted(async () => {
               maxLines: 6,
               wrap: go.TextBlock.WrapDesiredSize
             },
-            new go.Binding('text', 'lateTime')
+            new go.Binding('text', '', data => {
+              if (data.name === 'DEBUT' || data.name === 'FIN') return ''
+              if (data.lateFinishes && data.lateFinishes.length > 0) {
+                return data.lateFinishes.join('\n')
+              }
+              return data.lateTime
+            })
           )
         )
       )
@@ -101,8 +138,6 @@ onMounted(async () => {
       ),
       // Étiquette avec nom et durée de la tâche
       $(go.Panel, 'Auto',
-        // Fixed: Convert to boolean and use proper binding syntax
-        new go.Binding('visible', 'isFictitious', f => !f),
         $(go.Shape, 'RoundedRectangle',
           { 
             fill: 'white',  
@@ -146,19 +181,22 @@ onMounted(async () => {
   // Créer l'événement de départ
   events.set('START', {
     key: 'START',
+    name: 'DEBUT',
     earlyTime: 0,
-    lateTime: 0
+    lateTime: 0,
+    lateFinishes: []
   })
 
   // Créer l'événement final
   events.set('FIN', {
     key: 'FIN',
+    name: 'FIN',
     earlyTime: data.duration,
-    lateTime: data.duration
+    lateTime: data.duration,
+    lateFinishes: []
   })
 
   // Créer des événements uniques pour chaque point de convergence/divergence
-  // const eventCounter = { value: 1 }
   const taskToStartEvent = new Map()
   const taskToEndEvent = new Map()
 
@@ -173,8 +211,10 @@ onMounted(async () => {
         if (!events.has(predKey)) {
           events.set(predKey, {
             key: predKey,
+            name: predKey,
             earlyTime: task.earlyStart,
-            lateTime: task.lateStart
+            lateTime: task.lateStart,
+            lateFinishes: []
           })
         }
         startEventKey = predKey
@@ -188,8 +228,10 @@ onMounted(async () => {
         if (!events.has(endEventKey)) {
           events.set(endEventKey, {
             key: endEventKey,
+            name: endEventKey,
             earlyTime: task.earlyFinish,
-            lateTime: task.lateFinish
+            lateTime: task.lateFinish,
+            lateFinishes: task.lateFinishes || []
           })
         }
       }
@@ -219,17 +261,35 @@ onMounted(async () => {
           if (successor !== 'fin') {
             const successorStartEvent = taskToStartEvent.get(successor)
             if (toEvent !== successorStartEvent) {
-              // Arc fictif si nécessaire
+              // Arc fictif avec durée 0
               links.push({
                 from: toEvent,
                 to: successorStartEvent,
-                taskName: '',
+                // taskName: 'ARC FICTIF',
                 duration: 0,
                 isCritical: false,
                 isFictitious: true
               })
             }
           }
+        })
+      }
+    }
+  })
+
+  // Traiter les tâches sans prédécesseurs (connecter à START)
+  Object.entries(data.tasks).forEach(([taskName, task]) => {
+    if (taskName !== 'fin' && (!task.predecessors || task.predecessors.length === 0)) {
+      const taskStartEvent = taskToStartEvent.get(taskName)
+      if (taskStartEvent !== 'START') {
+        // Créer un arc fictif de START vers le début de la tâche
+        links.push({
+          from: 'START',
+          to: taskStartEvent,
+          taskName: 'ARC FICTIF',
+          duration: 0,
+          isCritical: false,
+          isFictitious: true
         })
       }
     }
@@ -268,6 +328,12 @@ onMounted(async () => {
         const event = filteredEvents.get(endEvent)
         event.earlyTime = Math.max(event.earlyTime || 0, task.earlyFinish)
         event.lateTime = Math.min(event.lateTime || Infinity, task.lateFinish)
+        // Ajouter les lateFinishes de la tâche à l'événement
+        if (task.lateFinishes && task.lateFinishes.length > 0) {
+          event.lateFinishes = [...(event.lateFinishes || []), ...task.lateFinishes]
+          // Supprimer les doublons et trier
+          event.lateFinishes = [...new Set(event.lateFinishes)].sort((a, b) => a - b)
+        }
       }
     }
   })
