@@ -20,6 +20,7 @@ async function generateCPM() {
   const $ = go.GraphObject.make
 
   if (diagram) diagram.clear()
+
   else {
     diagram = $(go.Diagram, diagramDiv.value, {
       'undoManager.isEnabled': true,
@@ -341,11 +342,11 @@ watch(() => props.generate, (newValue) => {
     generateCPM()
     emit("planFinished", true)
   } else {
-    console.log("kbi  ")
+    console.log("kbi")
   }
 })
 
 onMounted(() => {
-  if (props.generate) generateCPM()
+  generateCPM()
 })
 </script>
