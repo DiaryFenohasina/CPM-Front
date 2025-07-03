@@ -1,175 +1,178 @@
 <template>
-  <div class="container-fluid shadow-sm bg-light p-2 h-100">
+  <div class="container-fluid shadow-sm bg-light p-2 h-100 position-relative">
+
+    <!-- Header -->
     <div class="header-sidebar p-3">
-      <h3
-        class="text-center mx-3 py-2 fw-bold text-white bg-primary fs-1 rounded"
-      >
+      <h3 class="text-center mx-3 py-2 fw-bold text-white bg-primary fs-1 rounded">
         CPM
       </h3>
     </div>
-    <div class="action-controler d-flex justify-content-around p-2 my-4">
-      <button class="btn btn-outline-primary" @click="handleModal">
-        <i class="bi bi-plus-lg"></i> tâche
-      </button>
 
-      <button class="btn btn-outline-danger" @click="clearDataTask">
-        <i class="bi bi-arrow-clockwise"></i>
-      </button>
-    </div>
+    <!-- Task list -->
     <div class="tasks-list p-2 my-4">
-      <h3 class="text-center fs-3 text-primary">Liste des tâches</h3>
-      <div class="table-list-container">
-        <table class="table text-center table-borderless mt-4">
-          <thead>
-            <tr class="table-light">
-              <th></th>
-              <th>Tâche</th>
-              <th>Durée de la tâche</th>
-              <th>Succésseur</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr class="fs-5" v-for="task of tasks" :key="task.name">
-              <td class="">
-                <i class="bi bi-grip-horizontal"></i>
-              </td>
-              <td>
-                <span class="badge bg-info">{{ task.name }}</span>
-              </td>
-              <td>
-                <span>{{ task.duration }}j</span>
-              </td>
-              <td>
-                <span
-                  v-for="s of task.successors"
-                  :key="s"
-                  class="me-1 badge bg-warning"
-                >
-                  {{ s }}
-                </span>
-              </td>
-              <td class="">
-                <i class="me-2 bi bi-trash text-danger"></i>
-                <!-- <i class="bi bi-pencil text-success"></i> -->
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="header d-flex justify-content-between align-items-center">
+        <h3 class="fs-3 text-primary">Liste des tâches</h3>
+        <div class="action-controler d-flex gap-2">
+          <button class="btn btn-outline-primary" @click="openModal()">
+            <i class="bi bi-plus-lg"></i> tâche
+          </button>
+          <button class="btn btn-outline-danger" @click="resetTasks">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+        </div>
       </div>
-      <div class="container-fluid d-flex justify-content-end gap-2">
-        <button class="btn btn-outline-secondary" @click="onGenerateData">
-          Générer les données
+
+      <table class="table text-center table-borderless mt-4">
+        <thead>
+          <tr class="table-light">
+            <th>Tâche</th>
+            <th>Durée</th>
+            <th>Successeurs</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="task in tasks" :key="task.name" class="fs-5">
+            <td><span class="badge bg-info">{{ task.name }}</span></td>
+            <td>{{ task.duration }}j</td>
+            <td>
+              <span v-for="s in task.successors" :key="s" class="me-1 badge bg-warning">
+                {{ s }}
+              </span>
+            </td>
+            <td>
+              <i class="me-3 bi bi-trash text-danger" style="cursor: pointer;" @click="deleteTask(task.name)"></i>
+              <i class="bi bi-pencil text-success" style="cursor: pointer;" @click="editTask(task)"></i>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="d-flex justify-content-end gap-2">
+        <button class="btn btn-success" :disabled="tasks.length === 0" @click="generateCPM">
+          Générer le schéma
         </button>
-        <button class="btn btn-success" :disabled="!canGenerateSchema" >Générer le schema</button>
       </div>
     </div>
+
+    <!-- Modal -->
     <div class="modal d-block" v-if="showModal">
       <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">Ajouter une nouvelle tâche</h5>
-            <button
-              type="button"
-              class="btn-close"
-              @click="handleModal"
-            ></button>
+            <h5 class="modal-title">{{ isEditing ? "Modifier la tâche" : "Ajouter une nouvelle tâche" }}</h5>
+            <button type="button" class="btn-close" @click="closeModal"></button>
           </div>
           <div class="modal-body">
-            <form @submit.prevent="onSubmit">
+            <form @submit.prevent="submitTask">
               <div class="mb-3">
                 <label class="form-label">Nom de la tâche</label>
-                <input class="form-control" required v-model="formTaskName" />
+                <input class="form-control" required v-model="formTaskName" :disabled="isEditing" />
               </div>
               <div class="mb-3">
-                <label class="form-label">Durée de tâche</label>
-                <input
-                  type="number"
-                  class="form-control"
-                  required
-                  v-model="formTaskDuration"
-                />
+                <label class="form-label">Durée</label>
+                <input type="number" min="1" class="form-control" required v-model="formTaskDuration" />
               </div>
               <div class="mb-3">
-                <label class="form-label">
-                  Succésseur (à séparer par des virgules)
-                </label>
+                <label class="form-label">Successeurs (séparés par des virgules)</label>
                 <input class="form-control" v-model="formTaskSuccessor" />
               </div>
-              <div class="mb-3 text-end">
-                <button class="btn btn-primary">Ajouter</button>
+              <div class="text-end">
+                <button class="btn btn-primary">{{ isEditing ? "Mettre à jour" : "Ajouter" }}</button>
               </div>
             </form>
           </div>
         </div>
       </div>
     </div>
+
   </div>
 </template>
+
 <script setup>
-import axios from "axios";
 import { ref } from "vue";
+import axios from "axios";
+
+const emit = defineEmits(["generateCPM"]);
 
 const showModal = ref(false);
 const tasks = ref([]);
-const canGenerateSchema = ref(false)
-
-const handleModal = () => {
-  showModal.value = !showModal.value;
-};
-
-const clearForm = () => {
-  formTaskDuration.value = "";
-  formTaskName.value = "";
-  formTaskSuccessor.value = "";
-};
-
-const clearDataTask = () => {
-  tasks.value = []
-  canGenerateSchema.value = false
-}
+const isEditing = ref(false);
+const editIndex = ref(null);
 
 const formTaskName = ref("");
 const formTaskDuration = ref("");
 const formTaskSuccessor = ref("");
 
-function onSubmit() {
-  if (
-    !formTaskName.value &&
-    !formTaskDuration.value &&
-    !formTaskSuccessor.value
-  )
-    return;
+const openModal = () => {
+  resetForm();
+  showModal.value = true;
+};
 
-  const taskSuccessor =
-    formTaskSuccessor.value.length > 0
-      ? formTaskSuccessor.value
-          .split(",")
-          .map((item) => item.trim().toLocaleLowerCase())
-      : ["deb"];
+const closeModal = () => {
+  showModal.value = false;
+  resetForm();
+};
 
-  tasks.value.push({
-    name: formTaskName.value.toLowerCase(),
-    duration: formTaskDuration.value,
-    successors: taskSuccessor,
-  });
-  handleModal();
-  clearForm();
-}
+const resetForm = () => {
+  formTaskName.value = "";
+  formTaskDuration.value = "";
+  formTaskSuccessor.value = "";
+  isEditing.value = false;
+  editIndex.value = null;
+};
 
-async function onGenerateData() {
-  try {
-    const data = {
-      tasks: tasks.value,
-    };
-    
-    const response = await axios.post("http://localhost:8006/api/cpm", data);
+const submitTask = () => {
+  if (!formTaskName.value || !formTaskDuration.value) return;
 
-    if (response.status >= 200) canGenerateSchema.value = true 
-  } catch (error) {
-    console.log(error);
+  const successors = formTaskSuccessor.value
+    .split(",")
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean);
+
+  const newTask = {
+    name: formTaskName.value.trim().toLowerCase(),
+    duration: parseInt(formTaskDuration.value),
+    successors,
+  };
+
+  if (isEditing.value && editIndex.value !== null) {
+    tasks.value[editIndex.value] = newTask;
+  } else {
+    tasks.value.push(newTask);
   }
-}
 
+  closeModal();
+};
 
+const deleteTask = (taskName) => {
+  tasks.value = tasks.value.filter(task => task.name !== taskName);
+};
+
+const editTask = (task) => {
+  const index = tasks.value.findIndex(t => t.name === task.name);
+  if (index !== -1) {
+    formTaskName.value = task.name;
+    formTaskDuration.value = task.duration;
+    formTaskSuccessor.value = task.successors.join(",");
+    isEditing.value = true;
+    editIndex.value = index;
+    showModal.value = true;
+  }
+};
+
+const resetTasks = () => {
+  tasks.value = [];
+};
+
+const generateCPM = async () => {
+  try {
+    const response = await axios.post("http://localhost:8006/api/cpm", {
+      tasks: tasks.value,
+    });
+    if (response.status >= 200) emit("generateCPM", true);
+  } catch (error) {
+    console.error("Erreur lors de la génération du CPM :", error);
+  }
+};
 </script>
