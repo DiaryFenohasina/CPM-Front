@@ -110,6 +110,21 @@ async function generateCPM() {
             if (data.name === 'DEBUT' || data.name === 'FIN') return ''
             return data.lateTime
           })
+        ),
+        // Float (en bas, jaune) - pour tous les nœuds sauf DEBUT et FIN
+        $(go.TextBlock,
+          {
+            row: 3,
+            columnSpan: 3,
+            font: 'bold 10pt sans-serif',
+            textAlign: 'center',
+            stroke: 'orange',
+            margin: new go.Margin(2, 0, 0, 0)
+          },
+          new go.Binding('text', '', data => {
+            if (data.name === 'DEBUT' || data.name === 'FIN') return ''
+            return `Float: ${data.float || 0}`
+          })
         )
       )
     )
@@ -126,7 +141,11 @@ async function generateCPM() {
           strokeWidth: 2,
           stroke: 'black'
         },
-        new go.Binding('stroke', 'isCritical', b => b ? 'red' : 'black'),
+        new go.Binding('stroke', '', data => {
+          if (data.isCritical) return 'red'
+          if (data.isFictitious && data.isCriticalFictitious) return 'red'
+          return 'black'
+        }),
         new go.Binding('strokeWidth', 'isCritical', b => b ? 3 : 2),
         new go.Binding('strokeDashArray', 'isFictitious', f => f ? [5, 5] : null)
       ),
@@ -136,8 +155,16 @@ async function generateCPM() {
           fill: 'black',
           stroke: 'black'
         },
-        new go.Binding('stroke', 'isCritical', b => b ? 'red' : 'black'),
-        new go.Binding('fill', 'isCritical', b => b ? 'red' : 'black')
+        new go.Binding('stroke', '', data => {
+          if (data.isCritical) return 'red'
+          if (data.isFictitious && data.isCriticalFictitious) return 'red'
+          return 'black'
+        }),
+        new go.Binding('fill', '', data => {
+          if (data.isCritical) return 'red'
+          if (data.isFictitious && data.isCriticalFictitious) return 'red'
+          return 'black'
+        })
       ),
       // Étiquette avec nom et durée de la tâche
       $(go.Panel, 'Auto',
@@ -147,8 +174,16 @@ async function generateCPM() {
             stroke: 'gray',
             strokeWidth: 1
           },
-          new go.Binding('fill', 'isCritical', b => b ? '#ffe6e6' : 'white'),
-          new go.Binding('stroke', 'isCritical', b => b ? 'red' : 'gray')
+          new go.Binding('fill', '', data => {
+            if (data.isCritical) return '#ffe6e6'
+            if (data.isFictitious && data.isCriticalFictitious) return '#ffe6e6'
+            return 'white'
+          }),
+          new go.Binding('stroke', '', data => {
+            if (data.isCritical) return 'red'
+            if (data.isFictitious && data.isCriticalFictitious) return 'red'
+            return 'gray'
+          })
         ),
         $(go.Panel, 'Table',
           { margin: 4 },
@@ -186,7 +221,8 @@ async function generateCPM() {
     key: 'START',
     name: 'DEBUT',
     earlyTime: 0,
-    lateTime: 0
+    lateTime: 0,
+    float: 0
   })
 
   // Créer l'événement final
@@ -194,7 +230,8 @@ async function generateCPM() {
     key: 'FIN',
     name: 'FIN',
     earlyTime: data.duration,
-    lateTime: data.duration
+    lateTime: data.duration,
+    float: 0
   })
 
   // Créer des événements uniques pour chaque point de convergence/divergence
@@ -214,7 +251,8 @@ async function generateCPM() {
             key: predKey,
             name: predKey,
             earlyTime: task.earlyStart,
-            lateTime: task.lateStart
+            lateTime: task.lateStart,
+            float: task.lateStart - task.earlyStart
           })
         }
         startEventKey = predKey
@@ -230,13 +268,29 @@ async function generateCPM() {
             key: endEventKey,
             name: endEventKey,
             earlyTime: task.earlyFinish,
-            lateTime: task.lateFinish
+            lateTime: task.lateFinish,
+            float: task.lateFinish - task.earlyFinish
           })
         }
       }
       taskToEndEvent.set(taskName, endEventKey)
     }
   })
+
+  // Fonction pour vérifier si un arc fictif relie deux nœuds du chemin critique
+  function isOnCriticalPath(eventKey, tasks, criticalPath) {
+    // Vérifier si l'événement est lié à une tâche critique
+    for (const [taskName, task] of Object.entries(tasks)) {
+      if (taskName !== 'fin' && criticalPath.includes(taskName)) {
+        const taskStart = taskToStartEvent.get(taskName)
+        const taskEnd = taskToEndEvent.get(taskName)
+        if (eventKey === taskStart || eventKey === taskEnd) {
+          return true
+        }
+      }
+    }
+    return eventKey === 'START' || eventKey === 'FIN'
+  }
 
   // Deuxième passe : créer les liens entre les événements
   Object.entries(data.tasks).forEach(([taskName, task]) => {
@@ -251,7 +305,8 @@ async function generateCPM() {
         taskName: taskName.toUpperCase(),
         duration: task.duration,
         isCritical: data.criticalPath.includes(taskName),
-        isFictitious: false
+        isFictitious: false,
+        isCriticalFictitious: false
       })
 
       // Créer des liens vers les successeurs si nécessaire
@@ -260,14 +315,18 @@ async function generateCPM() {
           if (successor !== 'fin') {
             const successorStartEvent = taskToStartEvent.get(successor)
             if (toEvent !== successorStartEvent) {
+              // Vérifier si c'est un arc fictif critique
+              const isCriticalFictitious = isOnCriticalPath(toEvent, data.tasks, data.criticalPath) && 
+                                         isOnCriticalPath(successorStartEvent, data.tasks, data.criticalPath)
+              
               // Arc fictif avec durée 0
               links.push({
                 from: toEvent,
                 to: successorStartEvent,
-                // taskName: 'ARC FICTIF',
                 duration: 0,
                 isCritical: false,
-                isFictitious: true
+                isFictitious: true,
+                isCriticalFictitious: isCriticalFictitious
               })
             }
           }
@@ -281,6 +340,10 @@ async function generateCPM() {
     if (taskName !== 'fin' && (!task.predecessors || task.predecessors.length === 0)) {
       const taskStartEvent = taskToStartEvent.get(taskName)
       if (taskStartEvent !== 'START') {
+        // Vérifier si c'est un arc fictif critique
+        const isCriticalFictitious = isOnCriticalPath('START', data.tasks, data.criticalPath) && 
+                                   isOnCriticalPath(taskStartEvent, data.tasks, data.criticalPath)
+        
         // Créer un arc fictif de START vers le début de la tâche
         links.push({
           from: 'START',
@@ -288,7 +351,8 @@ async function generateCPM() {
           taskName: 'ARC FICTIF',
           duration: 0,
           isCritical: false,
-          isFictitious: true
+          isFictitious: true,
+          isCriticalFictitious: isCriticalFictitious
         })
       }
     }
@@ -321,12 +385,14 @@ async function generateCPM() {
         const event = filteredEvents.get(startEvent)
         event.earlyTime = Math.max(event.earlyTime || 0, task.earlyStart)
         event.lateTime = Math.min(event.lateTime || Infinity, task.lateStart)
+        event.float = event.lateTime - event.earlyTime
       }
 
       if (filteredEvents.has(endEvent)) {
         const event = filteredEvents.get(endEvent)
         event.earlyTime = Math.max(event.earlyTime || 0, task.earlyFinish)
         event.lateTime = Math.min(event.lateTime || Infinity, task.lateFinish)
+        event.float = event.lateTime - event.earlyTime
       }
     }
   })

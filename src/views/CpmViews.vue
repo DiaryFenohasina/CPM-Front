@@ -27,12 +27,13 @@ async function generateCPM() {
       })
     })
   }
+
   // Template pour les nœuds (événements)
   diagram.nodeTemplate =
     $(go.Node, 'Auto',
       $(go.Shape, 'Circle',
-        {
-          fill: 'white',
+        { 
+          fill: 'white', 
           strokeWidth: 2,
           stroke: 'black',
           width: 150,
@@ -42,8 +43,8 @@ async function generateCPM() {
       $(go.Panel, 'Table',
         { margin: 4 },
         // Nom de l'événement (seulement pour DEBUT et FIN)
-        $(go.TextBlock,
-          {
+        $(go.TextBlock, 
+          { 
             row: 0,
             columnSpan: 3,
             font: 'bold 14pt sans-serif',
@@ -54,8 +55,8 @@ async function generateCPM() {
           new go.Binding('text', 'name', name => (name === 'DEBUT' || name === 'FIN') ? name : '')
         ),
         // Valeur pour DEBUT (0) et FIN (durée du projet)
-        $(go.TextBlock,
-          {
+        $(go.TextBlock, 
+          { 
             row: 1,
             columnSpan: 3,
             font: 'bold 12pt sans-serif',
@@ -69,10 +70,10 @@ async function generateCPM() {
           })
         ),
         // Date au plus tôt (à gauche, rouge) - seulement pour les nœuds intermédiaires
-        $(go.TextBlock,
-          {
+        $(go.TextBlock, 
+          { 
             row: 2,
-            column: 0,
+            column: 0, 
             font: 'bold 12pt sans-serif',
             textAlign: 'center',
             stroke: 'red'
@@ -126,6 +127,21 @@ async function generateCPM() {
               return data.lateTime
             })
           )
+        ),
+        // Float (marge libre) en jaune - seulement pour les nœuds intermédiaires
+        $(go.TextBlock, 
+          { 
+            row: 3,
+            columnSpan: 3,
+            font: 'bold 10pt sans-serif',
+            textAlign: 'center',
+            stroke: 'orange',
+            margin: new go.Margin(4, 0, 0, 0)
+          },
+          new go.Binding('text', '', data => {
+            if (data.name === 'DEBUT' || data.name === 'FIN') return ''
+            return data.float !== undefined ? `Float: ${data.float}` : ''
+          })
         )
       )
     )
@@ -133,44 +149,64 @@ async function generateCPM() {
   // Template pour les liens (tâches)
   diagram.linkTemplate =
     $(go.Link,
-      {
+      { 
         corner: 10,
         selectable: true,
       },
       $(go.Shape,
-        {
+        { 
           strokeWidth: 2,
           stroke: 'black'
         },
-        new go.Binding('stroke', 'isCritical', b => b ? 'red' : 'black'),
+        new go.Binding('stroke', '', link => {
+          if (link.isCritical) return 'red'
+          if (link.isFictitious && link.isCriticalPath) return 'red'
+          return 'black'
+        }),
         new go.Binding('strokeWidth', 'isCritical', b => b ? 3 : 2),
         new go.Binding('strokeDashArray', 'isFictitious', f => f ? [5, 5] : null)
       ),
       $(go.Shape,
-        {
+        { 
           toArrow: 'Standard',
           fill: 'black',
           stroke: 'black'
         },
-        new go.Binding('stroke', 'isCritical', b => b ? 'red' : 'black'),
-        new go.Binding('fill', 'isCritical', b => b ? 'red' : 'black')
+        new go.Binding('stroke', '', link => {
+          if (link.isCritical) return 'red'
+          if (link.isFictitious && link.isCriticalPath) return 'red'
+          return 'black'
+        }),
+        new go.Binding('fill', '', link => {
+          if (link.isCritical) return 'red'
+          if (link.isFictitious && link.isCriticalPath) return 'red'
+          return 'black'
+        })
       ),
       // Étiquette avec nom et durée de la tâche
       $(go.Panel, 'Auto',
         $(go.Shape, 'RoundedRectangle',
-          {
-            fill: 'white',
+          { 
+            fill: 'white',  
             stroke: 'gray',
             strokeWidth: 1
           },
-          new go.Binding('fill', 'isCritical', b => b ? '#ffe6e6' : 'white'),
-          new go.Binding('stroke', 'isCritical', b => b ? 'red' : 'gray')
+          new go.Binding('fill', '', link => {
+            if (link.isCritical) return '#ffe6e6'
+            if (link.isFictitious && link.isCriticalPath) return '#ffe6e6'
+            return 'white'
+          }),
+          new go.Binding('stroke', '', link => {
+            if (link.isCritical) return 'red'
+            if (link.isFictitious && link.isCriticalPath) return 'red'
+            return 'gray'
+          })
         ),
         $(go.Panel, 'Table',
           { margin: 4 },
           // Nom de la tâche
           $(go.TextBlock,
-            {
+            { 
               row: 0,
               font: 'bold 12pt sans-serif',
               textAlign: 'center'
@@ -179,7 +215,7 @@ async function generateCPM() {
           ),
           // Durée
           $(go.TextBlock,
-            {
+            { 
               row: 1,
               font: '10pt sans-serif',
               textAlign: 'center'
@@ -203,6 +239,7 @@ async function generateCPM() {
     name: 'DEBUT',
     earlyTime: 0,
     lateTime: 0,
+    float: 0,
     lateFinishes: [],
     successorLateFinishes: new Map()
   })
@@ -213,6 +250,7 @@ async function generateCPM() {
     name: 'FIN',
     earlyTime: data.duration,
     lateTime: data.duration,
+    float: 0,
     lateFinishes: []
   })
 
@@ -234,6 +272,7 @@ async function generateCPM() {
             name: predKey,
             earlyTime: task.earlyStart,
             lateTime: task.lateStart,
+            float: task.lateStart - task.earlyStart,
             lateFinishes: [],
             successorLateFinishes: new Map()
           })
@@ -252,6 +291,7 @@ async function generateCPM() {
             name: endEventKey,
             earlyTime: task.earlyFinish,
             lateTime: task.lateFinish,
+            float: task.lateFinish - task.earlyFinish,
             lateFinishes: task.lateFinishes || [],
             successorLateFinishes: new Map()
           })
@@ -260,6 +300,16 @@ async function generateCPM() {
       taskToEndEvent.set(taskName, endEventKey)
     }
   })
+
+  // Fonction pour vérifier si un arc fictif est sur le chemin critique
+  const isOnCriticalPath = (fromTask, toTask) => {
+    const criticalPath = data.criticalPath
+    const fromIndex = criticalPath.indexOf(fromTask)
+    const toIndex = criticalPath.indexOf(toTask)
+    
+    // Vérifier si les deux tâches sont sur le chemin critique et consécutives
+    return fromIndex !== -1 && toIndex !== -1 && (toIndex === fromIndex + 1)
+  }
 
   // Deuxième passe : créer les liens entre les événements
   Object.entries(data.tasks).forEach(([taskName, task]) => {
@@ -274,7 +324,8 @@ async function generateCPM() {
         taskName: taskName.toUpperCase(),
         duration: task.duration,
         isCritical: data.criticalPath.includes(taskName),
-        isFictitious: false
+        isFictitious: false,
+        isCriticalPath: false
       })
 
       // Créer des liens vers les successeurs si nécessaire
@@ -284,13 +335,15 @@ async function generateCPM() {
             const successorStartEvent = taskToStartEvent.get(successor)
             if (toEvent !== successorStartEvent) {
               // Arc fictif avec durée 0
+              const isCriticalPathLink = isOnCriticalPath(taskName, successor)
               links.push({
                 from: toEvent,
                 to: successorStartEvent,
                 // taskName: 'ARC FICTIF',
                 duration: 0,
                 isCritical: false,
-                isFictitious: true
+                isFictitious: true,
+                isCriticalPath: isCriticalPathLink
               })
             }
           }
@@ -305,13 +358,15 @@ async function generateCPM() {
       const taskStartEvent = taskToStartEvent.get(taskName)
       if (taskStartEvent !== 'START') {
         // Créer un arc fictif de START vers le début de la tâche
+        const isCriticalPathLink = data.criticalPath.includes(taskName) && data.criticalPath.indexOf(taskName) === 0
         links.push({
           from: 'START',
           to: taskStartEvent,
           taskName: 'ARC FICTIF',
           duration: 0,
           isCritical: false,
-          isFictitious: true
+          isFictitious: true,
+          isCriticalPath: isCriticalPathLink
         })
       }
     }
@@ -339,17 +394,19 @@ async function generateCPM() {
     if (taskName !== 'fin') {
       const startEvent = taskToStartEvent.get(taskName)
       const endEvent = taskToEndEvent.get(taskName)
-
+      
       if (filteredEvents.has(startEvent)) {
         const event = filteredEvents.get(startEvent)
         event.earlyTime = Math.max(event.earlyTime || 0, task.earlyStart)
         event.lateTime = Math.min(event.lateTime || Infinity, task.lateStart)
+        event.float = event.lateTime - event.earlyTime
       }
-
+      
       if (filteredEvents.has(endEvent)) {
         const event = filteredEvents.get(endEvent)
         event.earlyTime = Math.max(event.earlyTime || 0, task.earlyFinish)
         event.lateTime = Math.min(event.lateTime || Infinity, task.lateFinish)
+        event.float = event.lateTime - event.earlyTime
 
         // Créer un mapping entre les successeurs et leurs lateFinishes
         if (task.lateFinishes && task.lateFinishes.length > 0 && task.successors) {
