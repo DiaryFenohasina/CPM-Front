@@ -82,7 +82,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import go from 'gojs'
-import {api} from '../config/axiosConfig'
+import axios from 'axios'
 
 const diagramDiv = ref(null)
 let diagram = null
@@ -158,8 +158,17 @@ async function generateCPM() {
   diagram.linkTemplate = createLinkTemplate($)
 
   if (!originalData) {
-    const { data } = await api.get('/critical-path')
-    originalData = data
+    try {
+
+      const { data } = await axios.get('http://localhost:8006/api/critical-path')
+      originalData = data
+    } catch (error) {
+      originalData = {
+        tasks: {},
+        duration: 0,
+        criticalPath: []
+      }
+    }
   }
 
   const { nodes, links } = generateModelData(originalData)

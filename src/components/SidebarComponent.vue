@@ -131,7 +131,7 @@
 
 <script setup>
 import { onMounted, ref } from "vue";
-import {api} from '../config/axiosConfig'
+import { api } from '../config/axiosConfig'
 
 const emit = defineEmits(["generateCPM", "toggleSidebar"]);
 const props = defineProps({
@@ -170,7 +170,9 @@ const submitTask = () => {
 
   const successors = formTaskSuccessor.value
     .split(",")
-    .map((s) => s.trim().toUpperCase())
+    .map((s) => {
+      return s === "fin" ? s : s.trim().toUpperCase()
+    })
     .filter(Boolean);
 
   const newTask = {
@@ -190,9 +192,10 @@ const submitTask = () => {
 
 const deleteTask = async (taskName) => {
   try {
-    const res = await api.delete("/tasks" + taskName);
+    const res = await api.delete("/tasks/" + taskName);
     if (res.status === 200) {
       tasks.value = tasks.value.filter((task) => task.name !== taskName);
+      emit("generateCPM", true);
     }
   } catch (error) {
     alert("Une erreur inattendue s'est produite : " + error.message);
@@ -215,7 +218,11 @@ const resetTasks = async () => {
   try {
     const res = await api.delete("/cpm")
 
-    if (res.status === 200) tasks.value = [];
+    if (res.status === 200) {
+      tasks.value = [];
+      emit("generateCPM", true);
+    }
+
   } catch (error) {
     alert("Une erreur inattendue s'est produite : " + error.message);
   }
