@@ -82,7 +82,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import go from 'gojs'
-import axios from 'axios'
+import { api } from '@/config/axiosConfig'
 
 const diagramDiv = ref(null)
 let diagram = null
@@ -160,7 +160,7 @@ async function generateCPM() {
   if (!originalData) {
     try {
 
-      const { data } = await axios.get('http://localhost:8006/api/critical-path')
+      const { data } = await api.get('/critical-path')
       originalData = data
     } catch (error) {
       originalData = {
