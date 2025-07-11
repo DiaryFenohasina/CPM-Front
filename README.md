@@ -1,4 +1,4 @@
-# cpm
+# cpm (https://cpm-front.vercel.app/)
 
 ## Project setup
 ```
