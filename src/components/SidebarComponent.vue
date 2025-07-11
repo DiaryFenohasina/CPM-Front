@@ -131,7 +131,7 @@
 
 <script setup>
 import { onMounted, ref } from "vue";
-import axios from "axios";
+import {api} from '../config/axiosConfig'
 
 const emit = defineEmits(["generateCPM", "toggleSidebar"]);
 const props = defineProps({
@@ -190,7 +190,7 @@ const submitTask = () => {
 
 const deleteTask = async (taskName) => {
   try {
-    const res = await axios.delete("http://localhost:8006/api/tasks/" + taskName);
+    const res = await api.delete("/tasks" + taskName);
     if (res.status === 200) {
       tasks.value = tasks.value.filter((task) => task.name !== taskName);
     }
@@ -213,7 +213,7 @@ const editTask = (task) => {
 
 const resetTasks = async () => {
   try {
-    const res = await axios.delete("http://localhost:8006/api/cpm")
+    const res = await api.delete("/cpm")
 
     if (res.status === 200) tasks.value = [];
   } catch (error) {
@@ -223,7 +223,7 @@ const resetTasks = async () => {
 
 const generateCPM = async () => {
   try {
-    const response = await axios.post("http://localhost:8006/api/cpm", {
+    const response = await api.post("/cpm", {
       tasks: tasks.value,
     });
     if (response) emit("generateCPM", true);
@@ -238,7 +238,7 @@ const toggleSidebar = () => {
 
 onMounted(async () => {
   try {
-    const res = await axios.get("http://localhost:8006/api/cpm");
+    const res = await api.get("/cpm");
     if (res) {
       tasks.value = res.data;
     }
