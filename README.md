@@ -1,4 +1,5 @@
-# cpm (https://cpm-front.vercel.app/)
+# cpm
+Visit [critical-path-methdd](https://cpm-front.vercel.app/).
 
 ## Project setup
 ```
